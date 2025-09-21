@@ -1,16 +1,83 @@
 package stepdef;
 
 import io.cucumber.java.en.*;
+import io.cucumber.java.Before;
+import io.cucumber.java.After;
+import io.cucumber.java.BeforeAll;
+import io.cucumber.java.AfterAll;
+import io.cucumber.java.BeforeStep;
+import io.cucumber.java.AfterStep;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.Select;
+import io.cucumber.java.Scenario;
 
 import java.time.Duration;
 
 import static org.junit.Assert.assertTrue;
+import pages.LoginPage;
+import pages.HomePage;
+import pages.SignupPage;
+import commonutil.ScreenshotUtil;
+
+// ===== Extent Report Utility (moved from ReportUtil.java) =====
+import com.aventstack.extentreports.ExtentReports;
+import com.aventstack.extentreports.ExtentTest;
+import com.aventstack.extentreports.reporter.ExtentSparkReporter;
+import com.aventstack.extentreports.reporter.configuration.Theme;
 
 public class StepDefinition {
     WebDriver driver;
+    LoginPage loginPage;
+    HomePage homePage;
+    SignupPage signupPage;
+
+    // Only keep the essential Extent Report fields
+    private static ExtentReports extent;
+    private static ExtentTest scenarioTest;
+
+    @BeforeAll
+    public static void beforeAllScenarios() {
+        ExtentSparkReporter sparkReporter = new ExtentSparkReporter("test-output/ExtentReport.html");
+        sparkReporter.config().setTheme(Theme.STANDARD);
+        sparkReporter.config().setDocumentTitle("Automation Report");
+        sparkReporter.config().setReportName("Cucumber Selenium Execution");
+        extent = new ExtentReports();
+        extent.attachReporter(sparkReporter);
+    }
+
+    @AfterAll
+    public static void afterAllScenarios() {
+        if (extent != null) {
+            extent.flush();
+        }
+    }
+
+    @Before
+    public void beforeEachScenario(Scenario scenario) {
+        scenarioTest = extent.createTest(scenario.getName());
+    }
+
+    @After
+    public void afterEachScenario(Scenario scenario) {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+
+    @AfterStep
+    public void afterEachStep(Scenario scenario) {
+        if (driver != null) {
+            String ssPath = ScreenshotUtil.takeScreenshot(driver, "Step_AfterStep");
+            java.io.File f = new java.io.File(System.getProperty("user.dir") + "/test-output/" + ssPath);
+            System.out.println("[DEBUG] Screenshot relative path: " + ssPath);
+            if (ssPath != null && f.exists()) {
+                scenarioTest.addScreenCaptureFromPath(ssPath);
+            } else {
+                System.out.println("[DEBUG] Screenshot not found or path is null: " + ssPath);
+            }
+        }
+    }
 
     @Given("I launch the Automation Exercise website")
     public void i_launch_the_automation_exercise_website() {
@@ -18,81 +85,68 @@ public class StepDefinition {
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
         driver.manage().window().maximize();
         driver.get("https://automationexercise.com/");
+        loginPage = new LoginPage(driver);
+        homePage = new HomePage(driver);
+        signupPage = new SignupPage(driver);
     }
 
     @When("I navigate to Signup page")
     public void i_navigate_to_signup_page() {
-        driver.findElement(By.linkText("Signup / Login")).click();
+        loginPage.clickSignupLogin();
     }
 
     @When("I enter name {string} and email {string}")
     public void i_enter_name_and_email(String name, String email) {
-        driver.findElement(By.name("name")).sendKeys(name);
-        driver.findElement(By.xpath("//input[@data-qa='signup-email']")).sendKeys(email);
-        driver.findElement(By.xpath("//button[text()='Signup']")).click();
+        signupPage.enterNameAndEmail(name, email);
     }
 
     @When("I fill the registration form with valid details")
     public void i_fill_the_registration_form_with_valid_details() {
-        // Title
-        driver.findElement(By.id("id_gender1")).click();
-        driver.findElement(By.id("password")).sendKeys("Password123");
-
-        // DOB
-        new Select(driver.findElement(By.id("days"))).selectByValue("10");
-        new Select(driver.findElement(By.id("months"))).selectByValue("5");
-        new Select(driver.findElement(By.id("years"))).selectByValue("1995");
-
-        // Address info
-        driver.findElement(By.id("first_name")).sendKeys("Test");
-        driver.findElement(By.id("last_name")).sendKeys("User");
-        driver.findElement(By.id("company")).sendKeys("TestCompany");
-        driver.findElement(By.id("address1")).sendKeys("123 Main Street");
-        driver.findElement(By.id("state")).sendKeys("Delhi");
-        driver.findElement(By.id("city")).sendKeys("New Delhi");
-        driver.findElement(By.id("zipcode")).sendKeys("110001");
-        driver.findElement(By.id("mobile_number")).sendKeys("9999999999");
+        signupPage.fillRegistrationForm();
     }
 
     @When("I submit the registration form")
     public void i_submit_the_registration_form() {
-        driver.findElement(By.xpath("//button[text()='Create Account']")).click();
+        signupPage.submitRegistration();
     }
 
     @Then("I should see {string} message")
     public void i_should_see_message(String expectedMessage) {
-        String message = driver.findElement(By.xpath("//b")).getText();
+        String message = homePage.getAccountCreatedMessage();
         assertTrue(message.contains(expectedMessage));
     }
 
     @Then("I should be logged in as {string}")
     public void i_should_be_logged_in_as(String username) {
-        driver.findElement(By.xpath("//a[text()='Continue']")).click();
-        String loggedInUser = driver.findElement(By.xpath("//a[contains(text(),'Logged in as')]")).getText();
-        assertTrue(loggedInUser.contains(username));
-        
+        homePage.clickContinue();
+        assertTrue(homePage.isLoggedInAs(username));
     }
     @When("I enter login email {string} and password {string}")
     public void i_enter_login_email_and_password(String email, String password) {
-        driver.findElement(By.name("email")).sendKeys(email);
-        driver.findElement(By.name("password")).sendKeys(password);
+        loginPage.enterEmailAndPassword(email, password);
     }
 
     @When("I click login button")
     public void i_click_login_button() {
-        driver.findElement(By.xpath("//button[text()='Login']")).click();
+        loginPage.clickLogin();
     }
 
     @Then("I should see login result {string} as {string}")
     public void i_should_see_login_result_as(String result, String username) {
         if(result.equals("success")) {
-            String loggedInUser = driver.findElement(By.xpath("//a[contains(text(),'Logged in as')]/b")).getText();
-            assertTrue(loggedInUser.contains(username));
+            assertTrue(loginPage.isLoggedIn(username));
         } else if(result.equals("failure")) {
-            String errorMessage = driver.findElement(By.xpath("//p[text()='Your email or password is incorrect!']")).getText();
-            assertTrue(errorMessage.contains("incorrect"));
+            assertTrue(loginPage.isLoginErrorVisible());
         }
-        driver.quit();
     }
     
+    @When("I click the logout button")
+    public void i_click_the_logout_button() {
+        loginPage.logout();
+    }
+
+    @Then("I should be navigated to the login page")
+    public void i_should_be_navigated_to_the_login_page() {
+        assertTrue(loginPage.isOnLoginPage());
+    }
 }
