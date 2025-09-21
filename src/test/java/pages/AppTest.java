@@ -1,4 +1,4 @@
-package com.AG.SeleniumCucumberProject2;
+package pages;
 
 import junit.framework.Test;
 import junit.framework.TestCase;
